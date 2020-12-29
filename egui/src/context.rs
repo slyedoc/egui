@@ -64,7 +64,7 @@ impl FrameState {
     pub fn available_rect(&self) -> Rect {
         debug_assert!(
             self.available_rect.is_finite(),
-            "Called `available_rect()` before `begin_frame()`"
+            "Called `available_rect()` before `CtxRef::begin_frame()`"
         );
         self.available_rect
     }
@@ -101,8 +101,8 @@ impl FrameState {
 
 // ----------------------------------------------------------------------------
 
-/// A wrapper around `CtxRef`.
-/// This is how you will normally access a [`Context`].
+/// A wrapper around [`Arc`](std::sync::Arc)`<`[`Context`]`>`.
+/// This is how you will normally create and access a [`Context`].
 #[derive(Clone)]
 pub struct CtxRef(std::sync::Arc<Context>);
 
@@ -145,7 +145,7 @@ impl Default for CtxRef {
 
 impl CtxRef {
     /// Call at the start of every frame.
-    /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
+    /// Put your widgets into a [`SidePanel`], [`TopPanel`], [`CentralPanel`], [`Window`] or [`Area`].
     pub fn begin_frame(&mut self, new_input: RawInput) {
         let mut self_: Context = (*self.0).clone();
         self_.begin_frame_mut(new_input);
@@ -154,8 +154,8 @@ impl CtxRef {
 
     // ---------------------------------------------------------------------
 
-    /// If the given `Id` is not unique, an error will be printed at the given position.
-    /// Call this for `Id`:s that need interaction or persistence.
+    /// If the given [`Id`] is not unique, an error will be printed at the given position.
+    /// Call this for [`Id`]:s that need interaction or persistence.
     pub(crate) fn register_interaction_id(&self, id: Id, new_pos: Pos2) {
         let prev_pos = self.memory().used_ids.insert(id, new_pos);
         if let Some(prev_pos) = prev_pos {
@@ -352,12 +352,9 @@ impl CtxRef {
 
 // ----------------------------------------------------------------------------
 
-/// Thi is the first thing you need when working with Egui.
+/// This is the first thing you need when working with Egui. Create using [`CtxRef`].
 ///
-/// Contains the input state, memory, options and output.
-/// `Ui`:s keep an `Arc` pointer to this.
-/// This allows us to create several child `Ui`:s at once,
-/// all working against the same shared Context.
+/// Contains the [`InputState`], [`Memory`], [`Output`], options and more.
 // TODO: too many mutexes. Maybe put it all behind one Mutex instead.
 #[derive(Default)]
 pub struct Context {
@@ -417,7 +414,7 @@ impl Context {
         self.memory.lock()
     }
 
-    pub fn graphics(&self) -> MutexGuard<'_, GraphicLayers> {
+    pub(crate) fn graphics(&self) -> MutexGuard<'_, GraphicLayers> {
         self.graphics.lock()
     }
 
@@ -442,17 +439,17 @@ impl Context {
         &self.input
     }
 
-    /// Not valid until first call to `begin_frame()`
+    /// Not valid until first call to [`CtxRef::begin_frame()`].
     /// That's because since we don't know the proper `pixels_per_point` until then.
     pub fn fonts(&self) -> &Fonts {
         &*self
             .fonts
             .as_ref()
-            .expect("No fonts available until first call to Context::begin_frame()`")
+            .expect("No fonts available until first call to CtxRef::begin_frame()")
     }
 
-    /// The Egui texture, containing font characters etc..
-    /// Not valid until first call to `begin_frame()`
+    /// The Egui texture, containing font characters etc.
+    /// Not valid until first call to [`CtxRef::begin_frame()`].
     /// That's because since we don't know the proper `pixels_per_point` until then.
     pub fn texture(&self) -> Arc<paint::Texture> {
         self.fonts().texture()
@@ -464,36 +461,39 @@ impl Context {
         self.options.lock().font_definitions = font_definitions;
     }
 
+    /// The [`Style`] used by all new windows, panels etc.
     pub fn style(&self) -> Arc<Style> {
         self.options.lock().style.clone()
     }
 
+    /// The [`Style`] used by all new windows, panels etc.
     pub fn set_style(&self, style: impl Into<Arc<Style>>) {
         self.options.lock().style = style.into();
     }
 
+    /// The number of physical pixels for each logical point.
     pub fn pixels_per_point(&self) -> f32 {
         self.input.pixels_per_point()
     }
 
     /// Useful for pixel-perfect rendering
-    pub fn round_to_pixel(&self, point: f32) -> f32 {
+    pub(crate) fn round_to_pixel(&self, point: f32) -> f32 {
         let pixels_per_point = self.pixels_per_point();
         (point * pixels_per_point).round() / pixels_per_point
     }
 
     /// Useful for pixel-perfect rendering
-    pub fn round_pos_to_pixels(&self, pos: Pos2) -> Pos2 {
+    pub(crate) fn round_pos_to_pixels(&self, pos: Pos2) -> Pos2 {
         pos2(self.round_to_pixel(pos.x), self.round_to_pixel(pos.y))
     }
 
     /// Useful for pixel-perfect rendering
-    pub fn round_vec_to_pixels(&self, vec: Vec2) -> Vec2 {
+    pub(crate) fn round_vec_to_pixels(&self, vec: Vec2) -> Vec2 {
         vec2(self.round_to_pixel(vec.x), self.round_to_pixel(vec.y))
     }
 
     /// Useful for pixel-perfect rendering
-    pub fn round_rect_to_pixels(&self, rect: Rect) -> Rect {
+    pub(crate) fn round_rect_to_pixels(&self, rect: Rect) -> Rect {
         Rect {
             min: self.round_pos_to_pixels(rect.min),
             max: self.round_pos_to_pixels(rect.max),
@@ -543,14 +543,20 @@ impl Context {
         self.input = std::mem::take(&mut self.input).begin_frame(new_raw_input);
         self.frame_state.lock().begin_frame(&self.input);
 
-        let mut font_definitions = self.options.lock().font_definitions.clone();
-        font_definitions.pixels_per_point = self.input.pixels_per_point();
+        let font_definitions = self.options.lock().font_definitions.clone();
+        let pixels_per_point = self.input.pixels_per_point();
         let same_as_current = match &self.fonts {
             None => false,
-            Some(fonts) => *fonts.definitions() == font_definitions,
+            Some(fonts) => {
+                *fonts.definitions() == font_definitions
+                    && (fonts.pixels_per_point() - pixels_per_point).abs() < 1e-3
+            }
         };
         if !same_as_current {
-            self.fonts = Some(Arc::new(Fonts::from_definitions(font_definitions)));
+            self.fonts = Some(Arc::new(Fonts::from_definitions(
+                pixels_per_point,
+                font_definitions,
+            )));
         }
 
         // Ensure we register the background area so panels and background ui can catch clicks:
@@ -643,22 +649,21 @@ impl Context {
     }
 
     /// True if Egui is currently interested in the mouse.
-    /// Could be the mouse is hovering over a Egui window,
-    /// or the user is dragging an Egui widget.
-    /// If false, the mouse is outside of any Egui area and so
+    /// Could be the mouse is hovering over a [`Window`] or the user is dragging a widget.
+    /// If `false`, the mouse is outside of any Egui area and so
     /// you may be interested in what it is doing (e.g. controlling your game).
-    /// Returns `false` if a drag starts outside of Egui and then moves over an Egui window.
+    /// Returns `false` if a drag started outside of Egui and then moved over an Egui area.
     pub fn wants_mouse_input(&self) -> bool {
         self.is_using_mouse() || (self.is_mouse_over_area() && !self.input().mouse.down)
     }
 
     /// Is Egui currently using the mouse position (e.g. dragging a slider).
-    /// NOTE: this will return false if the mouse is just hovering over an Egui window.
+    /// NOTE: this will return `false` if the mouse is just hovering over an Egui area.
     pub fn is_using_mouse(&self) -> bool {
         self.memory().interaction.is_using_mouse()
     }
 
-    /// If true, Egui is currently listening on text input (e.g. typing text in a `TextEdit`).
+    /// If `true`, Egui is currently listening on text input (e.g. typing text in a [`TextEdit`]).
     pub fn wants_keyboard_input(&self) -> bool {
         self.memory().interaction.kb_focus_id.is_some()
     }
@@ -687,7 +692,7 @@ impl Context {
     /// Calling this with `value = true` will always yield a number larger than zero, quickly going towards one.
     /// Calling this with `value = false` will always yield a number less than one, quickly going towards zero.
     ///
-    /// The function will call `request_repaint()` when appropriate.
+    /// The function will call [`Self::request_repaint()`] when appropriate.
     pub fn animate_bool(&self, id: Id, value: bool) -> f32 {
         let animation_time = self.style().animation_time;
         let animated_value =

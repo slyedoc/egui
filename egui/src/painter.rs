@@ -8,6 +8,8 @@ use crate::{
 };
 
 /// Helper to paint shapes and text to a specific region on a specific layer.
+///
+/// All coordinates are screen coordinates in the unit points (one point can consist of many physical pixels).
 #[derive(Clone)]
 pub struct Painter {
     /// Source of fonts and destination of paint commands
@@ -232,7 +234,7 @@ impl Painter {
     /// Show an arrow starting at `origin` and going in the direction of `vec`, with the length `vec.length()`.
     pub fn arrow(&self, origin: Pos2, vec: Vec2, stroke: Stroke) {
         use crate::math::*;
-        let rot = Rot2::from_angle(TAU / 10.0);
+        let rot = Rot2::from_angle(std::f32::consts::TAU / 10.0);
         let tip_length = vec.length() / 4.0;
         let tip = origin + vec;
         let dir = vec.normalized();

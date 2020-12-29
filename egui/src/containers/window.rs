@@ -12,19 +12,27 @@ use super::*;
 /// * if the window has a scroll area (off by default)
 /// * if the window can be collapsed (minimized) to just the title bar (yes, by default)
 /// * if there should be a close button (none by default)
+///
+/// ```
+/// # let mut ctx = egui::CtxRef::default();
+/// # ctx.begin_frame(Default::default());
+/// # let ctx = &ctx;
+/// egui::Window::new("My Window").show(ctx, |ui| {
+///    ui.label("Hello World!");
+/// });
 pub struct Window<'open> {
-    pub title_label: Label,
+    title_label: Label,
     open: Option<&'open mut bool>,
-    pub area: Area,
-    pub frame: Option<Frame>,
-    pub resize: Resize,
-    pub scroll: Option<ScrollArea>,
-    pub collapsible: bool,
-    pub with_title_bar: bool,
+    area: Area,
+    frame: Option<Frame>,
+    resize: Resize,
+    scroll: Option<ScrollArea>,
+    collapsible: bool,
+    with_title_bar: bool,
 }
 
 impl<'open> Window<'open> {
-    /// The window title is used as a unique Id and must be unique, and should not change.
+    /// The window title is used as a unique [`Id`] and must be unique, and should not change.
     /// This is true even if you disable the title bar with `.title_bar(false)`.
     pub fn new(title: impl Into<String>) -> Self {
         let title = title.into();

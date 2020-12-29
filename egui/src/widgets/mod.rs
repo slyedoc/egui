@@ -1,4 +1,4 @@
-//! Widgets are pieces of GUI such as labels, buttons, sliders etc.
+//! Widgets are pieces of GUI such as [`Label`], [`Button`], [`Slider`] etc.
 //!
 //! Example widget uses:
 //! * `ui.add(Label::new("Text").text_color(color::red));`
@@ -21,9 +21,10 @@ use paint::*;
 
 // ----------------------------------------------------------------------------
 
-/// Anything implementing Widget can be added to a Ui with `Ui::add`
+/// Anything implementing Widget can be added to a [`Ui`] with [`Ui::add`].
 #[must_use = "You should put this widget in an ui with `ui.add(widget);`"]
 pub trait Widget {
+    /// Allocate space, interact, paint, and return a [`Response`].
     fn ui(self, ui: &mut Ui) -> Response;
 }
 
@@ -298,7 +299,7 @@ impl Widget for Hyperlink {
 
 // ----------------------------------------------------------------------------
 
-/// Clickable button with text
+/// Clickable button with text.
 #[must_use = "You should put this widget in an ui with `ui.add(widget);`"]
 pub struct Button {
     text: String,
@@ -437,7 +438,7 @@ impl Widget for Button {
 // ----------------------------------------------------------------------------
 
 // TODO: allow checkbox without a text label
-/// Boolean on/off control with text label
+/// Boolean on/off control with text label.
 #[derive(Debug)]
 pub struct Checkbox<'a> {
     checked: &'a mut bool,
@@ -627,7 +628,7 @@ impl Widget for RadioButton {
 
 /// One out of several alternatives, either selected or not.
 /// Will mark selected items with a different background color
-/// An alternative to `RadioButton` and `Checkbox`.
+/// An alternative to [`RadioButton`] and [`Checkbox`].
 #[must_use = "You should put this widget in an ui with `ui.add(widget);`"]
 #[derive(Debug)]
 pub struct SelectableLabel {
@@ -690,7 +691,7 @@ impl Widget for SelectableLabel {
 
 // ----------------------------------------------------------------------------
 
-/// A visual separator. A horizontal or vertical line (depending on `Layout`).
+/// A visual separator. A horizontal or vertical line (depending on [`Layout`]).
 #[must_use = "You should put this widget in an ui with `ui.add(widget);`"]
 pub struct Separator {
     spacing: f32,

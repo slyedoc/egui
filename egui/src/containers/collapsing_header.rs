@@ -101,7 +101,7 @@ impl State {
 }
 
 /// Paint the arrow icon that indicated if the region is open or not
-pub fn paint_icon(ui: &mut Ui, openness: f32, response: &Response) {
+pub(crate) fn paint_icon(ui: &mut Ui, openness: f32, response: &Response) {
     let stroke = ui.style().interact(response).fg_stroke;
 
     let rect = response.rect;
@@ -109,6 +109,7 @@ pub fn paint_icon(ui: &mut Ui, openness: f32, response: &Response) {
     // Draw a pointy triangle arrow:
     let rect = Rect::from_center_size(rect.center(), vec2(rect.width(), rect.height()) * 0.75);
     let mut points = vec![rect.left_top(), rect.right_top(), rect.center_bottom()];
+    use std::f32::consts::TAU;
     let rotation = Rot2::from_angle(remap(openness, 0.0..=1.0, -TAU / 4.0..=0.0));
     for p in &mut points {
         *p = rect.center() + rotation * (*p - rect.center());
@@ -117,7 +118,7 @@ pub fn paint_icon(ui: &mut Ui, openness: f32, response: &Response) {
     ui.painter().add(PaintCmd::closed_line(points, stroke));
 }
 
-/// A header which can be collapsed/expanded, revealing a contained `Ui` region.
+/// A header which can be collapsed/expanded, revealing a contained [`Ui`] region.
 pub struct CollapsingHeader {
     label: Label,
     default_open: bool,
@@ -268,6 +269,7 @@ impl CollapsingHeader {
     }
 }
 
+/// The response from showing a [`CollapsingHeader`].
 pub struct CollapsingResponse<R> {
     pub header_response: Response,
     /// None iff collapsed.
